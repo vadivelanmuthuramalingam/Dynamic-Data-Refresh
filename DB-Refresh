@@ -1,0 +1,249 @@
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class EntityDataService {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    public void List<T> fetchAllDataFromDbAndStoreToRedis(String repositoryBeanName) {
+        JpaRepository<T, ?> repository = (JpaRepository<T, ?>) applicationContext.getBean(repositoryBeanName);
+        List<T> result = repository.findAll();
+
+		for(T t: result)
+		{
+			String redisKey = t.getKeyColumnName();
+			redisTemplate.opsForValue().set(redisKey, t);
+		}
+    }
+
+test()
+{
+ // Get all bean names
+        String[] beanNames = applicationContext.getBeanDefinitionNames();
+
+        for (String beanName : beanNames) {
+            Object bean = applicationContext.getBean(beanName);
+            
+            // Check if the bean is a repository and implements CrudRepository or JpaRepository
+            if (bean instanceof CrudRepository) {
+                repositoryBeanNames.add(beanName);
+            }
+        }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.lang.reflect.Field;
+import java.util.List;
+
+@Service
+public class DataService {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    public <T> void fetchAllDataFromDbAndStoreToRedis(String repositoryBeanName, String keyColumnName) {
+        // Get the repository bean
+        JpaRepository<T, ?> repository = (JpaRepository<T, ?>) applicationContext.getBean(repositoryBeanName);
+
+        // Fetch all data
+        List<T> result = repository.findAll();
+
+        for (T entity : result) {
+            try {
+                // Use reflection to access the column value
+                Field field = entity.getClass().getDeclaredField(keyColumnName);
+                field.setAccessible(true); // Allow access to private fields
+                Object keyColumnValue = field.get(entity);
+
+                if (keyColumnValue != null) {
+                    // Form Redis key
+                    String redisKey = "entity:" + keyColumnValue.toString();
+
+                    // Store in Redis
+                    redisTemplate.opsForValue().set(redisKey, entity);
+                }
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                // Handle reflection errors
+                throw new RuntimeException("Error accessing field '" + keyColumnName + "' in entity class", e);
+            }
+        }
+    }
+}
+
+
+
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.lang.reflect.Method;
+import java.util.List;
+
+@Service
+public class DataService {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    public <T> void fetchAllDataFromDbAndStoreToRedis(
+            String repositoryBeanName,
+            String keyColumnName,
+            String customMethodName,
+            Object arg1,
+            Object arg2
+    ) {
+        // Get the repository bean
+        JpaRepository<T, ?> repository = (JpaRepository<T, ?>) applicationContext.getBean(repositoryBeanName);
+
+        try {
+            // Use reflection to find the custom method
+            Method customMethod = repository.getClass().getMethod(customMethodName, arg1.getClass(), arg2.getClass());
+
+            // Execute the custom method with provided arguments
+            List<T> result = (List<T>) customMethod.invoke(repository, arg1, arg2);
+
+            // Process the result and store in Redis
+            for (T entity : result) {
+                try {
+                    // Use reflection to access the column value
+                    Field field = entity.getClass().getDeclaredField(keyColumnName);
+                    field.setAccessible(true); // Allow access to private fields
+                    Object keyColumnValue = field.get(entity);
+
+                    if (keyColumnValue != null) {
+                        // Form Redis key
+                        String redisKey = "entity:" + keyColumnValue.toString();
+
+                        // Store in Redis
+                        redisTemplate.opsForValue().set(redisKey, entity);
+                    }
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    // Handle reflection errors
+                    throw new RuntimeException("Error accessing field '" + keyColumnName + "' in entity class", e);
+                }
+            }
+        } catch (Exception e) {
+            // Handle reflection errors for method invocation
+            throw new RuntimeException(
+                    "Error executing custom method '" + customMethodName + "' on repository", e);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.List;
+
+@Service
+public class DataService {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    public <T> void fetchAllDataFromDbAndStoreToRedis(
+            String repositoryBeanName,
+            String keyColumnName,
+            String customMethodName,
+            Object... args // Accept variable-length arguments
+    ) {
+        // Get the repository bean
+        JpaRepository<T, ?> repository = (JpaRepository<T, ?>) applicationContext.getBean(repositoryBeanName);
+
+        try {
+            // Get argument types dynamically
+            Class<?>[] argTypes = new Class[args.length];
+            for (int i = 0; i < args.length; i++) {
+                argTypes[i] = args[i].getClass();
+            }
+
+            // Use reflection to find the custom method
+            Method customMethod = repository.getClass().getMethod(customMethodName, argTypes);
+
+            // Execute the custom method with provided arguments
+            List<T> result = (List<T>) customMethod.invoke(repository, args);
+
+            // Process the result and store in Redis
+            for (T entity : result) {
+                try {
+                    // Use reflection to access the column value
+                    Field field = entity.getClass().getDeclaredField(keyColumnName);
+                    field.setAccessible(true); // Allow access to private fields
+                    Object keyColumnValue = field.get(entity);
+
+                    if (keyColumnValue != null) {
+                        // Form Redis key
+                        String redisKey = "entity:" + keyColumnValue.toString();
+
+                        // Store in Redis
+                        redisTemplate.opsForValue().set(redisKey, entity);
+                    }
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    // Handle reflection errors
+                    throw new RuntimeException("Error accessing field '" + keyColumnName + "' in entity class", e);
+                }
+            }
+        } catch (Exception e) {
+            // Handle reflection errors for method invocation
+            throw new RuntimeException(
+                    "Error executing custom method '" + customMethodName + "' on repository", e);
+        }
+    }
+}
